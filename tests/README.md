@@ -1,124 +1,55 @@
-# WebSocket Echo Server Tests
+# Tests
 
-This directory contains comprehensive tests for the WebSocket echo server.
+This directory contains basic tests for the Audio WebSocket API.
 
 ## Test Files
 
-### `test_basic.py`
-Basic unit tests using Python's built-in `unittest` framework. Tests HTTP endpoints and basic functionality.
-
-**Run with:**
-```bash
-python tests/test_basic.py
-```
-
-### `test_integration.py`
-Integration tests that test the full WebSocket functionality. This is the main test script.
-
-**Run with:**
-```bash
-python tests/test_integration.py
-```
-
-### `conftest.py`
-Pytest configuration file (if you want to use pytest).
-
-## Test Coverage
-
-### HTTP Endpoints
-- ✅ Health check endpoint (`/health`)
-- ✅ Root endpoint (`/`) - serves HTML client
-- ✅ Static files (`/static/websocket.js`)
-
-### WebSocket Functionality
-- ✅ Basic connection and message echo
-- ✅ Multiple message handling
-- ✅ Connection manager state tracking
-- ✅ Proper connection cleanup
-
-### App Configuration
-- ✅ FastAPI app title and configuration
-- ✅ Static file mounting
-- ✅ Route registration
+- `test_basic.py` - Basic functionality tests (endpoints, imports, configuration)
+- `test_integration.py` - Integration tests (WebSocket connections, health checks)
+- `test_websocket.py` - WebSocket-specific tests (audio data handling, connections)
+- `conftest.py` - Pytest configuration and fixtures
 
 ## Running Tests
 
-### Prerequisites
-Make sure you have the required dependencies:
 ```bash
-pip install websockets httpx
+# Run all tests
+uv run pytest
+
+# Run specific test file
+uv run pytest tests/test_basic.py
+
+# Run with verbose output
+uv run pytest -v
+
+# Run with coverage
+uv run pytest --cov=audio_socket_api
 ```
 
-### Quick Test
-Run the integration test (recommended):
-```bash
-python tests/test_integration.py
-```
+## Test Coverage
 
-### Unit Tests
-Run basic unit tests:
-```bash
-python tests/test_basic.py
-```
+The tests cover:
 
-### With Server Running
-For WebSocket tests, you can optionally start the server first:
-```bash
-# Terminal 1: Start server
-python -m audio_socket_api.main
+- ✅ Health endpoint functionality
+- ✅ Root endpoint (HTML serving)
+- ✅ WebSocket connection establishment
+- ✅ Audio data handling
+- ✅ Connection manager functionality
+- ✅ Error handling
+- ✅ Basic imports and configuration
 
-# Terminal 2: Run tests
-python tests/test_integration.py
-```
+## Notes
 
-## Test Output
+- Tests use fake audio data since we can't easily mock OpenAI API
+- WebSocket tests focus on connection handling rather than transcription results
+- Integration tests verify the application works end-to-end
+- Basic tests ensure all components are properly configured
 
-The integration test will show:
-```
-🧪 WebSocket Echo Server Integration Tests
-==================================================
+## Adding New Tests
 
-📋 Running HTTP endpoint tests...
-✅ Health endpoint
-✅ Root endpoint
-✅ Static files
+When adding new tests:
 
-🔌 Running WebSocket tests...
-✅ WebSocket connection
-✅ Multiple messages
-✅ Connection manager
-
-==================================================
-TEST SUMMARY
-==================================================
-✅ PASS: Health endpoint
-✅ PASS: Root endpoint
-✅ PASS: Static files
-✅ PASS: WebSocket connection
-✅ PASS: Multiple messages
-✅ PASS: Connection manager
-
-Results: 6/6 tests passed
-🎉 All tests passed!
-```
-
-## Troubleshooting
-
-### Import Errors
-If you get import errors, make sure you're running from the project root:
-```bash
-cd /path/to/audio_socket
-python tests/test_integration.py
-```
-
-### WebSocket Connection Errors
-If WebSocket tests fail, make sure:
-1. The server is running on `localhost:8000`
-2. No firewall is blocking the connection
-3. The `websockets` library is installed
-
-### Missing Dependencies
-Install required dependencies:
-```bash
-pip install websockets httpx fastapi uvicorn
-``` 
+1. Use descriptive test function names
+2. Add docstrings explaining what each test does
+3. Keep tests simple and focused
+4. Use the `client` fixture for HTTP/WebSocket tests
+5. Test both success and error cases 

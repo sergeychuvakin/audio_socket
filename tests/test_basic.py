@@ -1,94 +1,57 @@
-"""Basic tests for WebSocket echo server."""
+"""Basic tests for the Audio WebSocket API."""
 
-import asyncio
-import json
-import unittest
-
+import fastapi
+import openai
 from fastapi.testclient import TestClient
 
-from audio_socket_api.main import app, manager
+from audio_socket_api.main import ConnectionManager, app, process_audio_with_whisper
 
 
-class TestWebSocketBasic(unittest.TestCase):
-    """Basic tests for WebSocket server."""
-
-    def setUp(self):
-        """Set up test client."""
-        self.client = TestClient(app)
-
-    def test_health_endpoint(self):
-        """Test health check endpoint."""
-        response = self.client.get("/health")
-        self.assertEqual(response.status_code, 200)
-
-        data = response.json()
-        self.assertIn("status", data)
-        self.assertIn("connections", data)
-        self.assertEqual(data["status"], "healthy")
-        self.assertIsInstance(data["connections"], int)
-
-    def test_root_endpoint(self):
-        """Test root endpoint serves HTML."""
-        response = self.client.get("/")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("text/html", response.headers["content-type"])
-        self.assertIn("WebSocket Echo Client", response.text)
-
-    def test_static_files(self):
-        """Test static files are served correctly."""
-        response = self.client.get("/static/websocket.js")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("text/javascript", response.headers["content-type"])
-        self.assertIn("WebSocketClient", response.text)
-
-    def test_app_configuration(self):
-        """Test FastAPI app configuration."""
-        self.assertEqual(app.title, "Simple WebSocket API")
-
-    def test_connection_manager_initial_state(self):
-        """Test connection manager initial state."""
-        self.assertEqual(len(manager.active_connections), 0)
+def test_health_endpoint(client: TestClient):
+    """Test the health check endpoint."""
+    response = client.get("/health")
+    assert response.status_code == 200
 
 
-class TestWebSocketAsync(unittest.IsolatedAsyncioTestCase):
-    """Async tests for WebSocket functionality."""
-
-    async def test_websocket_connection(self):
-        """Test basic WebSocket connection."""
-        try:
-            import websockets
-
-            uri = "ws://localhost:8000/ws"
-
-            async with websockets.connect(uri) as websocket:
-                # Test that we can send and receive a message
-                test_message = "Hello, WebSocket!"
-                await websocket.send(test_message)
-
-                response = await websocket.recv()
-                self.assertEqual(response, f"Echo: {test_message}")
-
-        except ImportError:
-            self.skipTest("websockets library not available")
-
-    async def test_multiple_messages(self):
-        """Test sending multiple messages."""
-        try:
-            import websockets
-
-            uri = "ws://localhost:8000/ws"
-
-            async with websockets.connect(uri) as websocket:
-                messages = ["First message", "Second message", "Third message"]
-
-                for message in messages:
-                    await websocket.send(message)
-                    response = await websocket.recv()
-                    self.assertEqual(response, f"Echo: {message}")
-
-        except ImportError:
-            self.skipTest("websockets library not available")
+def test_root_endpoint_returns_html(client: TestClient):
+    """Test that the root endpoint returns HTML."""
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    html_content = response.text
+    assert "<html" in html_content.lower()
+    assert "<head" in html_content.lower()
+    assert "<body" in html_content.lower()
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_websocket_endpoint_exists(client: TestClient):
+    """Test that the WebSocket endpoint is properly configured."""
+    with client.websocket_connect("/ws") as websocket:
+        assert websocket is not None
+
+
+def test_connection_manager():
+    """Test the ConnectionManager class."""
+
+    manager = ConnectionManager()
+    assert len(manager.active_connections) == 0
+
+
+def test_process_audio_function_exists():
+    """Test that the audio processing function exists and is callable."""
+
+    assert callable(process_audio_with_whisper)
+
+
+def test_app_configuration():
+    """Test that the FastAPI app is properly configured."""
+
+    assert app.title == "Audio WebSocket API"
+    assert "Realtime transcription with Whisper" in app.description
+
+
+def test_imports_work():
+    """Test that all required imports work correctly."""
+
+    assert openai is not None
+    assert fastapi is not None

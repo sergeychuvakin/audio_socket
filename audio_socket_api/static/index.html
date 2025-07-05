@@ -1,155 +1,72 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple WebSocket Echo Client</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-
-        .container {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            padding: 30px;
-            width: 100%;
-            max-width: 500px;
-        }
-
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-            font-size: 24px;
-        }
-
-        .status {
-            padding: 10px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            text-align: center;
-            font-weight: 500;
-        }
-
-        .status.connected {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .status.disconnected {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .input-group {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        input[type="text"] {
-            flex: 1;
-            padding: 12px;
-            border: 2px solid #e1e5e9;
-            border-radius: 6px;
-            font-size: 16px;
-            transition: border-color 0.3s;
-        }
-
-        input[type="text"]:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        button {
-            padding: 12px 24px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: 500;
-            transition: background-color 0.3s;
-        }
-
-        button:hover {
-            background: #5a6fd8;
-        }
-
-        button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-
-        .messages {
-            background: #f8f9fa;
-            border-radius: 6px;
-            padding: 15px;
-            height: 300px;
-            overflow-y: auto;
-            border: 1px solid #e1e5e9;
-        }
-
-        .message {
-            margin-bottom: 8px;
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-
-        .message.sent {
-            background: #e3f2fd;
-            color: #1976d2;
-            margin-left: 20px;
-        }
-
-        .message.received {
-            background: #f3e5f5;
-            color: #7b1fa2;
-            margin-right: 20px;
-        }
-
-        .message.system {
-            background: #fff3e0;
-            color: #f57c00;
-            text-align: center;
-            font-style: italic;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Whisper Audio Recorder</title>
 </head>
 <body>
-    <div class="container">
-        <h1>WebSocket Echo Client</h1>
-        
-        <div id="status" class="status disconnected">
-            Disconnected
-        </div>
+  <h2>Whisper Audio Recorder</h2>
+  <button id="start">Start Recording</button>
+  <button id="stop" disabled>Stop Recording</button>
+  <pre id="output">Transcript will appear here...</pre>
 
-        <div class="input-group">
-            <input type="text" id="messageInput" placeholder="Type a message..." disabled>
-            <button id="sendButton" onclick="sendMessage()" disabled>Send</button>
-        </div>
+  <script>
+    const startBtn = document.getElementById("start");
+    const stopBtn = document.getElementById("stop");
+    const output = document.getElementById("output");
 
-        <div id="messages" class="messages"></div>
-    </div>
+    let mediaRecorder;
+    let audioChunks = [];
+    let socket;
 
-    <script src="/static/websocket.js"></script>
+    startBtn.onclick = async () => {
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+      mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0) {
+          audioChunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.start();
+    };
+
+    stopBtn.onclick = async () => {
+      stopBtn.disabled = true;
+      startBtn.disabled = false;
+
+      mediaRecorder.stop();
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const arrayBuffer = await audioBlob.arrayBuffer();
+
+        socket = new WebSocket("ws://localhost:8000/ws");
+
+        socket.onopen = () => {
+          socket.send(arrayBuffer);
+        };
+
+        socket.onmessage = event => {
+          output.textContent += event.data + "\n";
+        };
+
+        socket.onclose = () => {
+          console.log("WebSocket closed");
+        };
+
+        socket.onerror = err => {
+          console.error("WebSocket error", err);
+        };
+
+        audioChunks = [];
+      };
+    };
+  </script>
 </body>
-</html> 
+</html>
