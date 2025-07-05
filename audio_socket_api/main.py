@@ -50,7 +50,7 @@ async def process_audio_with_whisper(audio_data: bytes):
         audio_file = io.BytesIO(audio_data)
         audio_file.name = f"audio{AUDIO_SAVE_SUFFIX}"  # Give it a filename for OpenAI
 
-        result = openai.audio.transcriptions.create(model="whisper-1", file=audio_file)
+        result = openai.audio.transcriptions.create(model="gpt-4o-mini-transcribe", file=audio_file)
         return result.text
 
     except Exception as e:  # pylint: disable=broad-exception-caught
