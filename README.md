@@ -53,6 +53,8 @@ OPENAI_API_KEY=your_actual_openai_api_key_here
 
 ## Usage
 
+### Local Development
+
 1. **Start the server**:
 ```bash
 uv run audio_socket_api/main.py
@@ -72,6 +74,54 @@ http://localhost:8000
 6. **View the transcribed text** in real-time as it appears
 
 7. **Click "Stop Recording"** when finished
+
+### Docker Deployment
+
+1. **Build the Docker image**:
+```bash
+docker build -t audio-socket-api .
+```
+
+2. **Run the container**:
+```bash
+docker run -p 8000:8000 -e OPENAI_API_KEY="your_api_key" audio-socket-api
+```
+
+
+4. **Access the application**:
+```
+http://localhost:8000
+```
+
+### Docker Commands
+
+**Build image:**
+```bash
+docker build -t audio-socket-api .
+```
+
+**Run container:**
+```bash
+docker run -p 8000:8000 -e OPENAI_API_KEY="your_key" audio-socket-api
+```
+
+**Run in detached mode:**
+```bash
+docker run -d -p 8000:8000 -e OPENAI_API_KEY="your_key" audio-socket-api
+```
+
+**Stop container:**
+```bash
+docker stop $(docker ps -q --filter ancestor=audio-socket-api)
+```
+
+**Remove all containers:**
+```bash
+docker rm -f $(docker ps -aq)
+```
+**Remove all containers by status:**
+docker rm -v $(docker ps --filter status=exited -q)
+docker rm -v $(docker ps --filter status=created -q) 
 
 ## How It Works
 
@@ -108,6 +158,9 @@ audio_socket/
 ├── tests/                   # Test files
 ├── pyproject.toml          # Project configuration and dependencies
 ├── uv.lock                 # UV lock file
+├── Dockerfile              # Docker configuration
+├── .dockerignore           # Docker ignore file
+├── .github/workflows/      # CI/CD configuration
 ├── env.example             # Environment variables template
 ├── README.md               # Project documentation
 └── LICENSE                 # Project license
