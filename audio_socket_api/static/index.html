@@ -46,7 +46,7 @@
         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
         const arrayBuffer = await audioBlob.arrayBuffer();
 
-        socket = new WebSocket("ws://localhost:8000/ws");
+        socket = new WebSocket("ws://0.0.0.0:8000/ws");
 
         socket.onopen = () => {
           socket.send(arrayBuffer);
