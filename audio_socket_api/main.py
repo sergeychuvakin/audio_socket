@@ -50,12 +50,14 @@ async def process_audio_with_whisper(audio_data: bytes):
         audio_file = io.BytesIO(audio_data)
         audio_file.name = f"audio{AUDIO_SAVE_SUFFIX}"  # Give it a filename for OpenAI
 
+        logger.info(f"Processing audio chunk of size: {len(audio_data)} bytes")
         result = openai.audio.transcriptions.create(model="gpt-4o-mini-transcribe", file=audio_file)
+        logger.info(f"Transcription successful: {result.text[:50]}...")
         return result.text
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.exception("Whisper processing failed")
-        return f"[ERROR] {e}"
+        return f"[ERROR] Transcription failed: {str(e)}"
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -72,6 +74,7 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             audio_bytes = await websocket.receive_bytes()
+            logger.info(f"Received audio data: {len(audio_bytes)} bytes")
             transcription = await process_audio_with_whisper(audio_bytes)
             await manager.send_text(websocket, transcription)
     except WebSocketDisconnect:

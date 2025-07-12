@@ -3,9 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <title>Whisper Audio Recorder</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    button { padding: 10px 20px; margin: 5px; font-size: 16px; }
+    #output { background: #f5f5f5; padding: 10px; border-radius: 5px; min-height: 100px; }
+    .error { color: red; }
+    .success { color: green; }
+    .status { margin: 10px 0; padding: 10px; border-radius: 5px; }
+  </style>
 </head>
 <body>
   <h2>Whisper Audio Recorder</h2>
+  <div id="status" class="status"></div>
   <button id="start">Start Recording</button>
   <button id="stop" disabled>Stop Recording</button>
   <pre id="output">Transcript will appear here...</pre>
@@ -14,58 +23,97 @@
     const startBtn = document.getElementById("start");
     const stopBtn = document.getElementById("stop");
     const output = document.getElementById("output");
+    const status = document.getElementById("status");
 
     let mediaRecorder;
     let audioChunks = [];
     let socket;
 
+    function showStatus(message, type = 'info') {
+      status.textContent = message;
+      status.className = `status ${type}`;
+    }
+
+    function getWebSocketUrl() {
+      // Use the current protocol, host, and port
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      return `${protocol}//${host}/ws`;
+    }
+
     startBtn.onclick = async () => {
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
+      try {
+        showStatus("Requesting microphone access...", "info");
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        showStatus("Recording started...", "success");
 
-      mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
 
-      mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) {
-          audioChunks.push(event.data);
-        }
-      };
+        mediaRecorder.ondataavailable = event => {
+          if (event.data.size > 0) {
+            audioChunks.push(event.data);
+          }
+        };
 
-      mediaRecorder.start();
+        mediaRecorder.start();
+      } catch (error) {
+        showStatus(`Error starting recording: ${error.message}`, "error");
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+      }
     };
 
     stopBtn.onclick = async () => {
-      stopBtn.disabled = true;
-      startBtn.disabled = false;
+      try {
+        stopBtn.disabled = true;
+        startBtn.disabled = false;
 
-      mediaRecorder.stop();
+        mediaRecorder.stop();
+        showStatus("Processing audio...", "info");
 
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        const arrayBuffer = await audioBlob.arrayBuffer();
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          const arrayBuffer = await audioBlob.arrayBuffer();
 
-        socket = new WebSocket("ws://0.0.0.0:8000/ws");
+          const wsUrl = getWebSocketUrl();
+          showStatus(`Connecting to ${wsUrl}...`, "info");
 
-        socket.onopen = () => {
-          socket.send(arrayBuffer);
+          socket = new WebSocket(wsUrl);
+
+          socket.onopen = () => {
+            showStatus("Connected! Sending audio...", "success");
+            socket.send(arrayBuffer);
+          };
+
+          socket.onmessage = event => {
+            showStatus("Received transcription!", "success");
+            output.textContent += event.data + "\n";
+          };
+
+          socket.onclose = (event) => {
+            console.log("WebSocket closed", event);
+            if (event.code !== 1000) {
+              showStatus(`WebSocket closed unexpectedly: ${event.reason || 'Unknown error'}`, "error");
+            } else {
+              showStatus("WebSocket connection closed", "info");
+            }
+          };
+
+          socket.onerror = (error) => {
+            console.error("WebSocket error", error);
+            showStatus("WebSocket connection error", "error");
+          };
+
+          audioChunks = [];
         };
-
-        socket.onmessage = event => {
-          output.textContent += event.data + "\n";
-        };
-
-        socket.onclose = () => {
-          console.log("WebSocket closed");
-        };
-
-        socket.onerror = err => {
-          console.error("WebSocket error", err);
-        };
-
-        audioChunks = [];
-      };
+      } catch (error) {
+        showStatus(`Error stopping recording: ${error.message}`, "error");
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+      }
     };
   </script>
 </body>
