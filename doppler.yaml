@@ -1,0 +1,3 @@
+setup:
+  - project: audio_socket
+    config: dev_personal
