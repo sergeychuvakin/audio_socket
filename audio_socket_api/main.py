@@ -44,8 +44,12 @@ manager = ConnectionManager()
 
 
 async def process_audio_with_whisper(audio_data: bytes):
-    """Process WebM audio with Whisper (requires ffmpeg)."""
+    """Process audio with Whisper (supports multiple formats)."""
     try:
+        # Log the first few bytes to help identify the format
+        logger.info(f"Processing audio chunk of size: {len(audio_data)} bytes")
+        logger.info(f"First 16 bytes: {audio_data[:16].hex()}")
+
         # Create BytesIO object from audio data
         audio_file = io.BytesIO(audio_data)
         audio_file.name = f"audio{AUDIO_SAVE_SUFFIX}"  # Give it a filename for OpenAI

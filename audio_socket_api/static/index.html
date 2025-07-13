@@ -92,17 +92,33 @@
       return /iPhone|iPad|iPod|Android|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     }
 
+    function detectAudioFormat(audioBlob) {
+      // Try to detect the actual format from the blob
+      const mimeType = audioBlob.type;
+      console.log(`Detected audio format: ${mimeType}`);
+      
+      // Check if it's a supported format
+      const supportedFormats = ['audio/webm', 'audio/mp4', 'audio/wav'];
+      const isSupported = supportedFormats.some(format => mimeType.includes(format));
+      
+      if (!isSupported) {
+        console.warn(`Warning: Audio format ${mimeType} might not be supported by Whisper`);
+      }
+      
+      return mimeType;
+    }
+
     function getSupportedMimeType() {
       const isMobile = isMobileDevice();
       
       if (isMobile) {
-        // Mobile browsers: Use Whisper-supported formats only
+        // Mobile browsers: Prioritize WebM over MP4 to avoid codec issues
         const mobileTypes = [
           'audio/webm',
           'audio/webm;codecs=opus',
+          'audio/wav',
           'audio/mp4',
-          'audio/mp4;codecs=mp4a',
-          'audio/wav'
+          'audio/mp4;codecs=mp4a'
         ];
         
         for (const type of mobileTypes) {
@@ -222,6 +238,10 @@
         mediaRecorder.onstop = async () => {
           const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
           const arrayBuffer = await audioBlob.arrayBuffer();
+
+          // Detect and log the actual format
+          const actualFormat = detectAudioFormat(audioBlob);
+          showStatus(`Audio format: ${actualFormat}`, "info");
 
           const wsUrl = getWebSocketUrl();
           showStatus(`Connecting to ${wsUrl}...`, "info");
