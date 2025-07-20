@@ -2,7 +2,9 @@
 
 import io
 
+import fleep
 import openai
+import pydub
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
@@ -13,10 +15,7 @@ from audio_socket_api import AUDIO_SOCKET_ROOT_PATH
 
 # Load env vars and configure logging
 load_dotenv()
-
-# Constants
-AUDIO_SAVE_SUFFIX = ".webm"
-
+UNIFIED_AUDIO_FORMAT = "wav"
 
 app = FastAPI(title="Audio WebSocket API", description="Realtime transcription with Whisper")
 app.mount("/static", StaticFiles(directory=AUDIO_SOCKET_ROOT_PATH / "static"), name="static")
@@ -43,18 +42,40 @@ class ConnectionManager:  # pylint: disable=missing-class-docstring
 manager = ConnectionManager()
 
 
-async def process_audio_with_whisper(audio_data: bytes):
+def detect_audio_format(audio_data: bytes) -> str:
+    """Detect the audio format of the audio data."""
+    audio_info = fleep.get(audio_data)
+    return audio_info.extension.pop()
+
+
+def convert_audio_to_wav(
+    audio_data: bytes,
+    input_format: str = "webm",
+    output_format: str = "wav",
+) -> bytes:
+    """Convert the audio data to WAV format."""
+    audio = pydub.AudioSegment.from_file(io.BytesIO(audio_data), format=input_format)
+    audio_io_buffer = io.BytesIO()
+    audio.export(audio_io_buffer, format=output_format)
+    audio_io_buffer.seek(0)
+    return audio_io_buffer.getvalue()
+
+
+async def process_audio_with_whisper(audio_data: bytes) -> str:
     """Process audio with Whisper (supports multiple formats)."""
     try:
         # Log the first few bytes to help identify the format
         logger.info(f"Processing audio chunk of size: {len(audio_data)} bytes")
         logger.info(f"First 16 bytes: {audio_data[:16].hex()}")
 
+        audio_format = detect_audio_format(audio_data)
+        if audio_format != UNIFIED_AUDIO_FORMAT:
+            audio_data = convert_audio_to_wav(audio_data, audio_format)
+
         # Create BytesIO object from audio data
         audio_file = io.BytesIO(audio_data)
-        audio_file.name = f"audio{AUDIO_SAVE_SUFFIX}"  # Give it a filename for OpenAI
+        audio_file.name = f"audio.{UNIFIED_AUDIO_FORMAT}"  # Give it a filename for OpenAI
 
-        logger.info(f"Processing audio chunk of size: {len(audio_data)} bytes")
         result = openai.audio.transcriptions.create(model="gpt-4o-mini-transcribe", file=audio_file)
         logger.info(f"Transcription successful: {result.text[:50]}...")
         return result.text
