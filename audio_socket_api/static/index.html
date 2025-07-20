@@ -3,14 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Whisper Audio Recorder</title>
+  <title>Audio Recorder</title>
   <style>
     body { 
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-      margin: 20px; 
-      max-width: 600px; 
       margin: 0 auto; 
       padding: 20px;
+      max-width: 600px;
     }
     button { 
       padding: 15px 25px; 
@@ -20,7 +19,6 @@
       border-radius: 8px;
       cursor: pointer;
       min-width: 120px;
-      touch-action: manipulation;
     }
     #start { background: #4CAF50; color: white; }
     #stop { background: #f44336; color: white; }
@@ -49,19 +47,11 @@
       font-weight: 500;
     }
     h2 { text-align: center; color: #333; }
-    @media (max-width: 480px) {
-      body { padding: 15px; }
-      button { 
-        width: 100%; 
-        margin: 5px 0; 
-        padding: 18px 25px; 
-      }
-    }
   </style>
 </head>
 <body>
-  <h2>Whisper Audio Recorder</h2>
-  <div id="status" class="status info">Ready to record</div>
+  <h2>Audio Recorder</h2>
+  <div id="status" class="status info">Detecting audio format...</div>
   <button id="start">Start Recording</button>
   <button id="stop" disabled>Stop Recording</button>
   <pre id="output">Transcript will appear here...</pre>
@@ -75,6 +65,7 @@
     let mediaRecorder;
     let audioChunks = [];
     let socket;
+    let selectedMimeType = '';
 
     function showStatus(message, type = 'info') {
       status.textContent = message;
@@ -82,114 +73,45 @@
     }
 
     function getWebSocketUrl() {
-      // Use the current protocol, host, and port
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
       return `${protocol}//${host}/ws`;
     }
 
-    function isMobileDevice() {
-      return /iPhone|iPad|iPod|Android|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    }
-
-    function detectAudioFormat(audioBlob) {
-      // Try to detect the actual format from the blob
-      const mimeType = audioBlob.type;
-      console.log(`Detected audio format: ${mimeType}`);
-      
-      // Check if it's a supported format
-      const supportedFormats = ['audio/webm', 'audio/mp4', 'audio/wav'];
-      const isSupported = supportedFormats.some(format => mimeType.includes(format));
-      
-      if (!isSupported) {
-        console.warn(`Warning: Audio format ${mimeType} might not be supported by Whisper`);
-      }
-      
-      return mimeType;
-    }
-
-    function getSupportedMimeType() {
-      const isMobile = isMobileDevice();
-      
-      if (isMobile) {
-        // Mobile browsers: Prioritize WebM over MP4 to avoid codec issues
-        const mobileTypes = [
-          'audio/webm',
-          'audio/webm;codecs=opus',
-          'audio/wav',
-          'audio/mp4;codecs=mp4a',
-          'audio/mp4',
-        ];
+    function detectBestAudioMimeType() {
+      const mimeTypes = [
+        // WebM with Opus (best quality, smallest size - supported by Chrome, Firefox, Edge)
+        'audio/webm;codecs=opus',
+        'audio/webm',
         
-        for (const type of mobileTypes) {
-          if (MediaRecorder.isTypeSupported(type)) {
-            console.log(`Mobile device using MIME type: ${type}`);
-            return type;
-          }
+        // MP4 with AAC (widely supported across all platforms)
+        'audio/mp4;codecs=mp4a',
+        'audio/mp4',
+        
+        // WAV (universal fallback)
+        'audio/wav'
+      ];
+
+      for (const mimeType of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+          console.log(`Selected MIME type: ${mimeType}`);
+          return mimeType;
         }
-        
-        // Fallback for mobile
-        console.log("Mobile device: No specific MIME type supported, using default");
-        return '';
+      }
+
+      console.log("No specific MIME type supported, using default");
+      return '';
+    }
+
+    // Auto-detect MIME type when page loads
+    window.addEventListener('load', () => {
+      selectedMimeType = detectBestAudioMimeType();
+      if (selectedMimeType) {
+        showStatus(`Ready to record (${selectedMimeType})`, "success");
       } else {
-        // Desktop browsers: Prefer WebM for better quality and smaller size
-        const desktopTypes = [
-          'audio/webm',
-          'audio/webm;codecs=opus',
-          'audio/webm;codecs=vorbis'
-        ];
-        
-        for (const type of desktopTypes) {
-          if (MediaRecorder.isTypeSupported(type)) {
-            console.log(`Desktop device using MIME type: ${type}`);
-            return type;
-          }
-        }
-        
-        // Fallback for desktop if WebM not supported
-        const fallbackTypes = [
-          'audio/mp4',
-          'audio/mp4;codecs=mp4a',
-          'audio/wav'
-        ];
-        
-        for (const type of fallbackTypes) {
-          if (MediaRecorder.isTypeSupported(type)) {
-            console.log(`Desktop device using fallback MIME type: ${type}`);
-            return type;
-          }
-        }
-        
-        console.log("Desktop device: No specific MIME type supported, using default");
-        return '';
+        showStatus("Ready to record (default format)", "success");
       }
-    }
-
-    function getAudioConstraints() {
-      const isMobile = isMobileDevice();
-      
-      // Base audio constraints
-      const constraints = {
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1
-        }
-      };
-      
-      if (isMobile) {
-        // Mobile-specific constraints
-        constraints.audio.sampleRate = 22050; // Lower sample rate for mobile efficiency
-        console.log("Using mobile audio constraints");
-      } else {
-        // Desktop-specific constraints
-        constraints.audio.sampleRate = 44100; // Higher quality for desktop
-        console.log("Using desktop audio constraints");
-      }
-      
-      return constraints;
-    }
+    });
 
     startBtn.onclick = async () => {
       try {
@@ -197,20 +119,13 @@
         startBtn.disabled = true;
         stopBtn.disabled = false;
 
-        const constraints = getAudioConstraints();
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         
-        const deviceType = isMobileDevice() ? "Mobile" : "Desktop";
-        showStatus(`${deviceType} device detected`, "info");
-
-        const mimeType = getSupportedMimeType();
-        const options = mimeType ? { mimeType } : {};
-        
+        const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
         mediaRecorder = new MediaRecorder(stream, options);
         
-        // Log the actual MIME type being used
-        console.log(`MediaRecorder created with MIME type: ${mediaRecorder.mimeType || 'default'}`);
-        showStatus(`Recording with format: ${mediaRecorder.mimeType || 'default'}`, "success");
+        const actualMimeType = mediaRecorder.mimeType || 'default';
+        showStatus(`Recording started (${actualMimeType})`, "success");
 
         mediaRecorder.ondataavailable = event => {
           if (event.data.size > 0) {
@@ -239,12 +154,8 @@
           const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
           const arrayBuffer = await audioBlob.arrayBuffer();
 
-          // Detect and log the actual format
-          const actualFormat = detectAudioFormat(audioBlob);
-          showStatus(`Audio format: ${actualFormat}`, "info");
-
           const wsUrl = getWebSocketUrl();
-          showStatus(`Connecting to ${wsUrl}...`, "info");
+          showStatus("Connecting to server...", "info");
 
           socket = new WebSocket(wsUrl);
 
@@ -261,15 +172,15 @@
           socket.onclose = (event) => {
             console.log("WebSocket closed", event);
             if (event.code !== 1000) {
-              showStatus(`WebSocket closed unexpectedly: ${event.reason || 'Unknown error'}`, "error");
+              showStatus(`Connection closed: ${event.reason || 'Unknown error'}`, "error");
             } else {
-              showStatus("WebSocket connection closed", "info");
+              showStatus("Connection closed", "info");
             }
           };
 
           socket.onerror = (error) => {
             console.error("WebSocket error", error);
-            showStatus("WebSocket connection error", "error");
+            showStatus("Connection error", "error");
           };
 
           audioChunks = [];
