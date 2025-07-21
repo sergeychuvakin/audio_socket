@@ -166,7 +166,20 @@
 
           socket.onmessage = event => {
             showStatus("Received transcription!", "success");
-            output.textContent += event.data + "\n";
+            
+            try {
+              // Parse JSON response
+              const response = JSON.parse(event.data);
+              
+              output.textContent += response.text + "\n";
+              output.textContent += `[${response.timestamp}]\n`;
+              output.textContent += response.id;
+            
+            } catch (error) {
+              // Fallback for non-JSON responses (backward compatibility)
+              console.warn("Failed to parse JSON response:", error);
+              output.textContent += event.data + "\n";
+            }
           };
 
           socket.onclose = (event) => {

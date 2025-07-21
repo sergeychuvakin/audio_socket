@@ -1,6 +1,9 @@
 """WebSocket audio recognition server using OpenAI Whisper."""
 
+import hashlib
 import io
+import json
+from datetime import datetime, timezone
 
 import fleep
 import openai
@@ -34,6 +37,9 @@ class ConnectionManager:  # pylint: disable=missing-class-docstring
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
             logger.info("Client disconnected. Total: %d", len(self.active_connections))
+
+    async def send_json(self, websocket: WebSocket, data: dict[str, str]):  # pylint: disable=missing-function-docstring
+        await websocket.send_text(json.dumps(data))
 
     async def send_text(self, websocket: WebSocket, text: str):  # pylint: disable=missing-function-docstring
         await websocket.send_text(text)
@@ -94,14 +100,21 @@ async def root():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """Handle audio WebSocket stream and send back transcribed text."""
+    """Handle audio WebSocket stream and send back transcribed text as JSON."""
     await manager.connect(websocket)
     try:
         while True:
             audio_bytes = await websocket.receive_bytes()
             logger.info(f"Received audio data: {len(audio_bytes)} bytes")
             transcription = await process_audio_with_whisper(audio_bytes)
-            await manager.send_text(websocket, transcription)
+
+            response_data = {
+                "id": hashlib.sha256(audio_bytes).hexdigest(),
+                "text": transcription,
+                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+            }
+
+            await manager.send_json(websocket, response_data)
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
         manager.disconnect(websocket)
